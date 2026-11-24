@@ -27,7 +27,6 @@ public class ConsultaRepository
             """;
         comando.ExecuteNonQuery();
 
-        // Bancos criados antes desta versão não têm as colunas Convenio e Exame.
         var colunas = new List<string>();
         comando.CommandText = "PRAGMA table_info(Consultas)";
         using (var leitor = comando.ExecuteReader())
@@ -40,8 +39,6 @@ public class ConsultaRepository
         }
     }
 
-    // Carrega todos os registros do banco em uma List<Consulta> (estrutura linear)
-    // e aplica os três algoritmos manuais, nesta ordem: busca -> seleção -> ordenação.
     public async Task<List<Consulta>> Listar(string? busca, string? campo, string? status, string? especialidade, string? ordem)
     {
         await using var banco = new SqliteConnection(_conexao);
@@ -61,11 +58,8 @@ public class ConsultaRepository
             });
         }
 
-        // 1) Busca linear: texto + campo.
         var resultado = BuscaLinear.Buscar(consultas, busca, campo);
-        // 2) Seleção: status + especialidade.
         resultado = Selecao.Selecionar(resultado, status, especialidade);
-        // 3) Selection Sort: critério por paciente ou por data.
         SelectionSort.Ordenar(resultado,
             ordem == "paciente" ? SelectionSort.PorPaciente : SelectionSort.PorData);
 

@@ -1,10 +1,7 @@
 namespace ClinicaMedica;
 
-// Listas fixas usadas nas caixas de seleção da tela.
-// Os dados abaixo são fictícios; edite aqui para alterar as opções.
 public static class Catalogo
 {
-    // Formato do nome: "Profissional - CRM número" (números fictícios).
     public static readonly Dictionary<string, string[]> MedicosPorEspecialidade = new()
     {
         ["Oncologia"] = new[] { "Dra. Helena Duarte - CRM 1001", "Dr. Rafael Tavares - CRM 1002" },

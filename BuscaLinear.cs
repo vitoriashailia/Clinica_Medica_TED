@@ -1,12 +1,7 @@
 namespace ClinicaMedica;
 
-// Busca linear (sequencial) implementada manualmente sobre uma List<Consulta>.
-// Não usa LINQ, Where, Contains de coleção nem LIKE do SQLite.
 public static class BuscaLinear
 {
-    // Parâmetro 1: texto  -> trecho a procurar (ignora maiúsculas/minúsculas).
-    // Parâmetro 2: campo  -> "paciente", "medico", "especialidade" ou "todos".
-    // Percorre a lista do início ao fim e guarda os elementos que casam.
     public static List<Consulta> Buscar(List<Consulta> lista, string? texto, string? campo)
     {
         if (string.IsNullOrWhiteSpace(texto))
