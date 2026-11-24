@@ -16,7 +16,7 @@ Projeto acadêmico simples para cadastrar e organizar consultas médicas. Feito 
 2. Abra o terminal nesta pasta.
 3. Execute `dotnet restore`.
 4. Execute `dotnet run`.
-5. Abra o endereço local mostrado no terminal (normalmente `http://localhost:5000`).
+5. Abra o endereço local em seu navegador, é mostrado no terminal (normalmente `http://localhost:5000`).
 6. Para terminar de executar use Ctrl+C
 
 O banco de dados `dados/clinica.db` é criado automaticamente na primeira execução.
