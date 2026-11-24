@@ -2,9 +2,58 @@ const lista = document.querySelector('#lista');
 const form = document.querySelector('#form-consulta');
 const mensagem = document.querySelector('#mensagem');
 
+const campoEspecialidade = document.querySelector('#form-especialidade');
+const campoMedico = document.querySelector('#form-medico');
+let catalogo = { especialidades: [], medicos: {}, convenios: [], exames: [] };
+
+function preencher(select, opcoes, textoInicial) {
+  select.innerHTML = '';
+  if (textoInicial !== undefined) select.add(new Option(textoInicial, ''));
+  for (const opcao of opcoes) select.add(new Option(opcao, opcao));
+}
+
+function atualizarMedicos() {
+  const selecionado = campoMedico.value;
+  let medicos = catalogo.medicos[campoEspecialidade.value];
+  if (!medicos) {
+    // Nenhuma especialidade escolhida: mostra todos os médicos.
+    medicos = [];
+    for (const especialidade of catalogo.especialidades) medicos.push(...catalogo.medicos[especialidade]);
+  }
+  preencher(campoMedico, medicos, 'Selecione o médico');
+  if (medicos.includes(selecionado)) campoMedico.value = selecionado;
+}
+
+function escolherMedico() {
+  // Ao escolher um médico sem especialidade definida, preenche a especialidade dele.
+  if (!campoMedico.value || campoEspecialidade.value) return;
+  for (const especialidade of catalogo.especialidades) {
+    if (catalogo.medicos[especialidade].includes(campoMedico.value)) {
+      campoEspecialidade.value = especialidade;
+      atualizarMedicos();
+      return;
+    }
+  }
+}
+
+function preencherFormulario() {
+  preencher(campoEspecialidade, catalogo.especialidades, 'Selecione a especialidade');
+  preencher(document.querySelector('#form-convenio'), catalogo.convenios);
+  preencher(document.querySelector('#form-exame'), catalogo.exames, 'Nenhum');
+  atualizarMedicos();
+}
+
+async function carregarCatalogo() {
+  catalogo = await (await fetch('/api/catalogo')).json();
+  preencherFormulario();
+  preencher(document.querySelector('#filtro-especialidade'), catalogo.especialidades, 'Todas');
+}
+
 async function carregarConsultas() {
   const parametros = new URLSearchParams({
     busca: document.querySelector('#busca').value,
+    campo: document.querySelector('#campo').value,
+    especialidade: document.querySelector('#filtro-especialidade').value,
     status: document.querySelector('#status').value,
     ordem: document.querySelector('#ordem').value
   });
@@ -17,7 +66,7 @@ async function carregarConsultas() {
   for (const consulta of consultas) {
     const linha = document.createElement('tr');
     const data = new Date(consulta.dataHora).toLocaleString('pt-BR');
-    linha.innerHTML = `<td>${escapar(consulta.paciente)}</td><td>${escapar(consulta.medico)}</td><td>${escapar(consulta.especialidade || '—')}</td><td>${data}</td><td><span class="status-tag">${escapar(consulta.status)}</span></td><td><button class="excluir" data-id="${consulta.id}" aria-label="Excluir consulta">Excluir</button></td>`;
+    linha.innerHTML = `<td>${escapar(consulta.paciente)}</td><td>${escapar(consulta.medico)}</td><td>${escapar(consulta.especialidade || '—')}</td><td>${escapar(consulta.convenio || '—')}</td><td>${escapar(consulta.exame || '—')}</td><td>${data}</td><td><span class="status-tag">${escapar(consulta.status)}</span></td><td><button class="excluir" data-id="${consulta.id}" aria-label="Excluir consulta">Excluir</button></td>`;
     lista.appendChild(linha);
   }
 }
@@ -39,17 +88,21 @@ form.addEventListener('submit', async evento => {
   if (!resposta.ok) {
     const erro = await resposta.json(); mensagem.textContent = erro.mensagem; return;
   }
-  form.reset(); await carregarConsultas();
+  form.reset(); preencherFormulario(); await carregarCatalogo().then(carregarConsultas);
 });
 
 lista.addEventListener('click', async evento => {
   const botao = evento.target.closest('[data-id]');
   if (!botao || !confirm('Deseja excluir esta consulta?')) return;
   await fetch(`/api/consultas/${botao.dataset.id}`, { method: 'DELETE' });
-  await carregarConsultas();
+  await carregarCatalogo().then(carregarConsultas);
 });
 
 document.querySelector('#busca').addEventListener('input', carregarConsultas);
+document.querySelector('#campo').addEventListener('change', carregarConsultas);
+document.querySelector('#filtro-especialidade').addEventListener('change', carregarConsultas);
+campoEspecialidade.addEventListener('change', atualizarMedicos);
+campoMedico.addEventListener('change', escolherMedico);
 document.querySelector('#status').addEventListener('change', carregarConsultas);
 document.querySelector('#ordem').addEventListener('change', carregarConsultas);
-carregarConsultas();
+carregarCatalogo().then(carregarConsultas);

@@ -26,26 +26,28 @@ public class ConsultaRepository
             );
             """;
         comando.ExecuteNonQuery();
+
+        // Bancos criados antes desta versão não têm as colunas Convenio e Exame.
+        var colunas = new List<string>();
+        comando.CommandText = "PRAGMA table_info(Consultas)";
+        using (var leitor = comando.ExecuteReader())
+            while (leitor.Read()) colunas.Add(leitor.GetString(1));
+        foreach (var coluna in new[] { "Convenio", "Exame" })
+        {
+            if (colunas.Contains(coluna)) continue;
+            comando.CommandText = $"ALTER TABLE Consultas ADD COLUMN {coluna} TEXT NOT NULL DEFAULT ''";
+            comando.ExecuteNonQuery();
+        }
     }
 
-    public async Task<List<Consulta>> Listar(string? busca, string? status, string? ordem)
+    // Carrega todos os registros do banco em uma List<Consulta> (estrutura linear)
+    // e aplica os três algoritmos manuais, nesta ordem: busca -> seleção -> ordenação.
+    public async Task<List<Consulta>> Listar(string? busca, string? campo, string? status, string? especialidade, string? ordem)
     {
         await using var banco = new SqliteConnection(_conexao);
         await banco.OpenAsync();
         await using var comando = banco.CreateCommand();
-        var sql = "SELECT Id, Paciente, Medico, Especialidade, DataHora, Status FROM Consultas WHERE 1=1";
-
-        if (!string.IsNullOrWhiteSpace(busca))
-        {
-            sql += " AND (Paciente LIKE $busca OR Medico LIKE $busca OR Especialidade LIKE $busca)";
-            comando.Parameters.AddWithValue("$busca", $"%{busca}%");
-        }
-        if (!string.IsNullOrWhiteSpace(status) && status != "Todas")
-        {
-            sql += " AND Status = $status";
-            comando.Parameters.AddWithValue("$status", status);
-        }
-        comando.CommandText = sql;
+        comando.CommandText = "SELECT Id, Paciente, Medico, Especialidade, DataHora, Status, Convenio, Exame FROM Consultas";
 
         var consultas = new List<Consulta>();
         await using var leitor = await comando.ExecuteReaderAsync();
@@ -54,14 +56,20 @@ public class ConsultaRepository
             consultas.Add(new Consulta
             {
                 Id = leitor.GetInt32(0), Paciente = leitor.GetString(1), Medico = leitor.GetString(2),
-                Especialidade = leitor.GetString(3), DataHora = DateTime.Parse(leitor.GetString(4)), Status = leitor.GetString(5)
+                Especialidade = leitor.GetString(3), DataHora = DateTime.Parse(leitor.GetString(4)), Status = leitor.GetString(5),
+                Convenio = leitor.GetString(6) == "" ? "PARTICULAR" : leitor.GetString(6), Exame = leitor.GetString(7)
             });
         }
 
-        SelectionSort.Ordenar(consultas,
+        // 1) Busca linear: texto + campo.
+        var resultado = BuscaLinear.Buscar(consultas, busca, campo);
+        // 2) Seleção: status + especialidade.
+        resultado = Selecao.Selecionar(resultado, status, especialidade);
+        // 3) Selection Sort: critério por paciente ou por data.
+        SelectionSort.Ordenar(resultado,
             ordem == "paciente" ? SelectionSort.PorPaciente : SelectionSort.PorData);
 
-        return consultas;
+        return resultado;
     }
 
     public async Task<int> Adicionar(Consulta consulta)
@@ -69,12 +77,14 @@ public class ConsultaRepository
         await using var banco = new SqliteConnection(_conexao);
         await banco.OpenAsync();
         await using var comando = banco.CreateCommand();
-        comando.CommandText = "INSERT INTO Consultas (Paciente, Medico, Especialidade, DataHora, Status) VALUES ($paciente, $medico, $especialidade, $data, $status); SELECT last_insert_rowid();";
+        comando.CommandText = "INSERT INTO Consultas (Paciente, Medico, Especialidade, DataHora, Status, Convenio, Exame) VALUES ($paciente, $medico, $especialidade, $data, $status, $convenio, $exame); SELECT last_insert_rowid();";
         comando.Parameters.AddWithValue("$paciente", consulta.Paciente.Trim());
         comando.Parameters.AddWithValue("$medico", consulta.Medico.Trim());
         comando.Parameters.AddWithValue("$especialidade", consulta.Especialidade.Trim());
         comando.Parameters.AddWithValue("$data", consulta.DataHora.ToString("O"));
         comando.Parameters.AddWithValue("$status", consulta.Status);
+        comando.Parameters.AddWithValue("$convenio", consulta.Convenio);
+        comando.Parameters.AddWithValue("$exame", consulta.Exame ?? "");
         return Convert.ToInt32(await comando.ExecuteScalarAsync());
     }
 
